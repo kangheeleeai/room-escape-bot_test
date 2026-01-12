@@ -8,13 +8,14 @@ from utils import sort_candidates_by_query
 # ==============================================================================
 # [지역 데이터베이스]
 # ==============================================================================
+# [수정] 서울 그룹 locations에 "서울" 추가 (주소 필터링 강화)
 AREA_GROUPS = [
-    {"name": "서울", "keywords": ["서울"], "locations": ["홍대", "강남", "건대", "대학로", "신촌", "잠실", "신림", "노원", "성수", "영등포", "신사", "수유", "서울대입구", "성신여대", "명동", "천호", "마곡", "용산", "종각", "구로", "목동", "연신내", "동대문", "노량진", "왕십리", "이수", "문래", "역삼"]},
+    {"name": "서울", "keywords": ["서울"], "locations": ["서울", "홍대", "강남", "건대", "대학로", "신촌", "잠실", "신림", "노원", "성수", "영등포", "신사", "수유", "서울대입구", "성신여대", "명동", "천호", "마곡", "용산", "종각", "구로", "목동", "연신내", "동대문", "노량진", "왕십리", "이수", "문래", "역삼"]},
     {"name": "경기/인천", "keywords": ["경기", "인천", "수도권"], "locations": ["인천", "수원", "부천", "성남", "일산", "안산", "의정부", "평택", "동탄", "안양", "김포", "구리", "용인", "화정", "범계", "시흥", "화성", "이천", "하남", "산본", "동두천"]},
     {"name": "충청", "keywords": ["충청", "대전", "세종", "충남", "충북"], "locations": ["대전", "천안", "청주", "당진", "세종"]},
     {"name": "경상", "keywords": ["경상", "부산", "대구", "울산", "경남", "경북"], "locations": ["부산", "대구", "울산", "포항", "창원", "진주", "양산", "구미", "경주", "영주", "안동"]},
     {"name": "전라", "keywords": ["전라", "광주", "전남", "전북"], "locations": ["광주", "전주", "익산", "여수", "목포", "순천", "군산"]},
-    {"name": "강원", "keywords": ["강원"], "locations": ["원주", "강릉", "정선", "속초", "춘천"]}, # 순천 중복 제거 및 주요 도시 보완
+    {"name": "강원", "keywords": ["강원"], "locations": ["원주", "강릉", "정선", "속초", "춘천"]},
     {"name": "제주", "keywords": ["제주"], "locations": ["제주"]}
 ]
 
@@ -85,12 +86,9 @@ class EscapeBotEngine:
         for group in AREA_GROUPS:
             for keyword in group['keywords']:
                 if keyword in text or keyword in text_clean:
-                    # 키워드가 발견되었는데, 이미 해당 그룹의 소분류가 하나도 발견되지 않았거나
-                    # 혹은 광역 검색 의도("경상도 방탈출")일 경우를 위해 확장
-                    # (여기서는 단순히 키워드가 있으면 해당 그룹 전체를 후보에 넣습니다. OR 검색이므로 안전함)
                     if on_log: on_log(f"   -> 권역 감지: '{keyword}' ({len(group['locations'])}개 지역 추가)")
                     found_locations.update(group['locations'])
-                    break # 한 그룹에서 키워드 하나만 걸리면 됨
+                    break 
 
         return list(found_locations)
 
@@ -148,7 +146,6 @@ class EscapeBotEngine:
         
         if not self.groq_client: return {}
         
-        # [변경] LLM에게 지역 추출을 시키지 않음 (파이썬 로직으로 처리)
         prompt = f"""
         Analyze the user's Escape Room query in Korean.
         Query: "{user_query}"
@@ -173,21 +170,18 @@ class EscapeBotEngine:
             cleaned_str = self._clean_json_string(result_str)
             result = json.loads(cleaned_str)
             
-            # [핵심] 지역 추출은 파이썬 로직으로 수행하여 덮어쓰기
             extracted_locs = self._extract_locations_from_text(user_query, on_log)
             result['locations'] = extracted_locs
             
-            # played_check일 경우 items 내부의 location도 보정 시도 (단순 매칭)
             if result.get('items'):
                 for item in result['items']:
                     if not item.get('location') and extracted_locs:
-                        item['location'] = extracted_locs[0] # 첫 번째 발견된 지역 할당
+                        item['location'] = extracted_locs[0]
 
             if on_log: on_log(f"   -> 분석 완료: {result.get('action')}, 추출 지역: {result.get('locations')}")
             return result
         except Exception as e:
             if on_log: on_log(f"   ❌ 의도 분석 실패: {e}")
-            # 에러 시에도 지역 추출은 시도
             locs = self._extract_locations_from_text(user_query)
             return {"action": "recommend", "keywords": [user_query], "locations": locs}
 
@@ -195,23 +189,19 @@ class EscapeBotEngine:
         if not self.groq_client:
             return "⚠️ API Key 설정 필요", {}, {}, "error", {}
 
-        # 1. 의도 분석 (여기서 파이썬 지역 추출이 실행됨)
         intent_data = self.analyze_user_intent(user_query, on_log)
         action = intent_data.get('action', 'recommend')
         debug_info = {"intent": intent_data, "query": user_query}
 
-        # 플레이 기록 문의
         if action == "played_check_inquiry":
             msg = "플레이한 테마를 `[지역] [테마명] 했어` 라고 말씀해주시면 기록해 드립니다!"
             return msg, {}, {}, action, debug_info
 
-        # 플레이 기록 추가/삭제
         if action in ['played_check', 'not_played_check']:
             if not user_context:
                 return "⚠️ 닉네임을 먼저 설정해주세요.", {}, {}, action, debug_info
             
             items = intent_data.get('items') or []
-            # Fallback for single item
             if not items and intent_data.get('theme'):
                 loc = intent_data.get('locations')[0] if intent_data.get('locations') else ""
                 items.append({"location": loc, "theme": intent_data.get('theme')})
@@ -231,14 +221,12 @@ class EscapeBotEngine:
             
             return "\n".join(results_msg), {}, {}, action, debug_info
 
-        # 3. 필터 설정 (locations 리스트 사용)
         current_filters = {
             'locations': intent_data.get('locations') or [],
             'keywords': intent_data.get('keywords') or [],
             'mentioned_users': intent_data.get('mentioned_users') or []
         }
         
-        # 유저 처리
         current_users = [u.strip() for u in str(user_context or "").split(',') if u.strip()]
         for u in current_filters['mentioned_users']:
             if u not in current_users: current_users.append(u)
@@ -251,7 +239,6 @@ class EscapeBotEngine:
         if action == 'another_recommend' and session_context:
             filters_to_use = session_context.get('last_filters', {})
             exclude_ids = list(session_context.get('shown_ids', []))
-            # 위치 변경 요청이 있으면 덮어쓰기 (새로운 지역이 감지되었을 때만)
             if current_filters.get('locations'): 
                 filters_to_use['locations'] = current_filters['locations']
         else:
@@ -260,16 +247,13 @@ class EscapeBotEngine:
 
         if on_log: on_log(f"필터 적용: {filters_to_use}, 제외 ID: {len(exclude_ids)}개")
 
-        # 4. 추천 실행
         final_results = {}
         
-        # Rule-Based
         candidates_rule = self.rule_recommender.search_themes(
             filters_to_use, user_query, limit=3, nicknames=final_context, exclude_ids=exclude_ids, log_func=on_log
         )
         if candidates_rule: final_results['rule_based'] = candidates_rule
 
-        # Personalized
         if final_context:
             candidates_vector = self.vector_recommender.recommend_by_user_search(
                 final_context, user_query=user_query, limit=3, filters=filters_to_use, exclude_ids=exclude_ids, log_func=on_log
@@ -277,7 +261,6 @@ class EscapeBotEngine:
             if candidates_vector:
                 final_results['personalized'] = candidates_vector
 
-        # Fallback
         if not final_results:
             candidates_text = self.vector_recommender.recommend_by_text(
                 user_query, filters=filters_to_use, exclude_ids=exclude_ids, log_func=on_log
@@ -287,12 +270,9 @@ class EscapeBotEngine:
             else:
                 return "조건에 맞는 테마를 찾지 못했습니다.", {}, filters_to_use, action, debug_info
 
-        # 5. 답변 생성
         if on_log: on_log("📝 답변 생성 중 (Fixed Template)...")
         
-        # 토픽 문자열 구성
         locs = intent_data.get('locations') or []
-        # 너무 많으면 축약 (예: 경상도 검색 시)
         if len(locs) > 5:
             loc_str = f"{locs[0]}, {locs[1]} 외 {len(locs)-2}곳"
         else:
