@@ -11,11 +11,15 @@ class RuleBasedRecommender:
         locs_input = criteria.get('locations', [])
         loc_str_log = ", ".join(locs_input) if locs_input else "전체"
         
-        # [수정] 평점 조건 로깅
         min_rating = criteria.get('min_rating')
-        rating_log = f", 최소평점 {min_rating}" if min_rating else ""
+        # [수정] 인원수 필터 로그 추가
+        people_count = criteria.get('people_count')
         
-        if log_func: log_func(f"[Rule] 검색 시작 (지역: {loc_str_log}{rating_log})")
+        log_parts = [f"지역: {loc_str_log}"]
+        if min_rating: log_parts.append(f"최소평점 {min_rating}")
+        if people_count: log_parts.append(f"인원 {people_count}명")
+        
+        if log_func: log_func(f"[Rule] 검색 시작 ({', '.join(log_parts)})")
         
         played_theme_ids = set()
         
@@ -46,8 +50,6 @@ class RuleBasedRecommender:
 
         # 2. DB 쿼리
         themes_ref = self.db.collection('themes')
-        # 평점 조건이 아주 높으면(4.5 이상) 쿼리 단계에서부터 줄일 수도 있지만, 
-        # 여기서는 유연성을 위해 메모리 필터링을 사용합니다.
         query = themes_ref.order_by('satisfyTotalRating', direction="DESCENDING").limit(200)
 
         docs = list(query.stream())
@@ -71,14 +73,27 @@ class RuleBasedRecommender:
                 if not any(target in db_loc for target in clean_locs):
                     continue
 
-            # [수정] 평점 필터링 (Rating Filter)
-            # satisfyTotalRating은 보통 0.0 ~ 5.0 사이의 실수
+            # [평점 필터링]
             try:
                 rating = float(data.get('satisfyTotalRating') or 0)
                 if min_rating and rating < float(min_rating):
                     continue
             except:
                 pass
+
+            # [수정: 인원수 필터링]
+            # average_person_count 필드를 확인하여 N-1 ~ N+1 범위 내인지 검사
+            if people_count:
+                try:
+                    avg_person = data.get('average_person_count')
+                    if avg_person: # 데이터가 있는 경우만 필터링
+                        rec_val = float(avg_person)
+                        target = float(people_count)
+                        # 오차 범위 ±1 (예: 4명 요청 시 3~5명 추천)
+                        if not (target - 1 <= rec_val <= target + 1):
+                            continue
+                except:
+                    pass
 
             # 벡터 저장
             vec_obj = data.get('embedding_field')
@@ -173,6 +188,8 @@ class VectorRecommender:
             
             locs_input = filters.get('locations', []) if filters else []
             min_rating = filters.get('min_rating') if filters else None
+            # [수정] 인원수 필터 추가
+            people_count = filters.get('people_count') if filters else None
             
             clean_locs = [loc.replace(" ", "") for loc in locs_input if loc.strip()]
             
@@ -201,13 +218,25 @@ class VectorRecommender:
                     if not any(target in db_loc for target in clean_locs):
                         continue
 
-                # [수정] 평점 필터링 추가
+                # [평점 필터]
                 try:
                     rating = float(data.get('satisfyTotalRating') or 0)
                     if min_rating and rating < float(min_rating):
                         continue
                 except:
                     pass
+
+                # [수정: 인원수 필터]
+                if people_count:
+                    try:
+                        avg_person = data.get('average_person_count')
+                        if avg_person:
+                            rec_val = float(avg_person)
+                            target = float(people_count)
+                            if not (target - 1 <= rec_val <= target + 1):
+                                continue
+                    except:
+                        pass
                 
                 # 벡터 유사도 계산
                 vec_obj = data.get('embedding_field')
