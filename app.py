@@ -188,16 +188,8 @@ def main():
 
             if cards:
                 # 탭 구성
-                tab1, tab2 = st.tabs(["🎯 맞춤 추천", "🔎 조건 추천"])
-                
+                tab1, tab2 = st.tabs(["🔎 조건 추천", "🎯 맞춤 추천"])
                 with tab1:
-                    # 맞춤 추천이 있으면 표시
-                    if 'personalized' in cards:
-                        render_cards(cards['personalized'])
-                    else:
-                        st.caption("맞춤 추천 결과가 없습니다. (로그인 필요)")
-
-                with tab2:
                     # Rule-based 결과 표시
                     rule_list = cards.get('rule_based', [])
                     
@@ -210,6 +202,13 @@ def main():
                         render_cards(rule_list)
                     else:
                         st.caption("검색 결과가 없습니다.")
+                        
+                with tab2:
+                    # 맞춤 추천이 있으면 표시
+                    if 'personalized' in cards:
+                        render_cards(cards['personalized'])
+                    else:
+                        st.caption("맞춤 추천 결과가 없습니다. (로그인 필요)")
             
             # if debug_mode and debug_info:
             #     with st.expander("🛠️ 디버그 정보"):
