@@ -92,12 +92,12 @@ def render_cards(card_list):
 
 def main():
     with st.sidebar:
-        st.title("⚙️ 설정 & 프로필")
+        st.title("⚙️ 설정")
         
         page = st.radio("이동", ["🤖 챗봇", "📖 가이드"])
         st.divider()
         
-        st.subheader("👥 플레이어 정보")
+        st.subheader("👥 플레이어 정보(빠방)")
         my_name = st.text_input("내 닉네임", placeholder="예: 코난", key="my_name_input")
         group_names = st.text_input("같이 할 멤버 (옵션)", placeholder="예: 김전일, L", key="group_names_input")
         
