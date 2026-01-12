@@ -12,7 +12,7 @@ class RuleBasedRecommender:
         loc_str_log = ", ".join(locs_input) if locs_input else "전체"
         
         min_rating = criteria.get('min_rating')
-        # [수정] 인원수 필터 로그 추가
+        # 인원수 필터 로그 추가
         people_count = criteria.get('people_count')
         
         log_parts = [f"지역: {loc_str_log}"]
@@ -81,7 +81,7 @@ class RuleBasedRecommender:
             except:
                 pass
 
-            # [수정: 인원수 필터링]
+            # [인원수 필터링]
             # average_person_count 필드를 확인하여 N-1 ~ N+1 범위 내인지 검사
             if people_count:
                 try:
@@ -188,7 +188,7 @@ class VectorRecommender:
             
             locs_input = filters.get('locations', []) if filters else []
             min_rating = filters.get('min_rating') if filters else None
-            # [수정] 인원수 필터 추가
+            # 인원수 필터 추가
             people_count = filters.get('people_count') if filters else None
             
             clean_locs = [loc.replace(" ", "") for loc in locs_input if loc.strip()]
@@ -226,7 +226,7 @@ class VectorRecommender:
                 except:
                     pass
 
-                # [수정: 인원수 필터]
+                # [인원수 필터]
                 if people_count:
                     try:
                         avg_person = data.get('average_person_count')
