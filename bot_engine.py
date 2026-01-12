@@ -8,7 +8,6 @@ from utils import sort_candidates_by_query
 # ==============================================================================
 # [지역 데이터베이스]
 # ==============================================================================
-# [수정] 서울 그룹 locations에 "서울" 추가 (주소 필터링 강화)
 AREA_GROUPS = [
     {"name": "서울", "keywords": ["서울"], "locations": ["서울", "홍대", "강남", "건대", "대학로", "신촌", "잠실", "신림", "노원", "성수", "영등포", "신사", "수유", "서울대입구", "성신여대", "명동", "천호", "마곡", "용산", "종각", "구로", "목동", "연신내", "동대문", "노량진", "왕십리", "이수", "문래", "역삼"]},
     {"name": "경기/인천", "keywords": ["경기", "인천", "수도권"], "locations": ["인천", "수원", "부천", "성남", "일산", "안산", "의정부", "평택", "동탄", "안양", "김포", "구리", "용인", "화정", "범계", "시흥", "화성", "이천", "하남", "산본", "동두천"]},
@@ -19,11 +18,10 @@ AREA_GROUPS = [
     {"name": "제주", "keywords": ["제주"], "locations": ["제주"]}
 ]
 
-# 검색 속도를 위한 전체 지역 평탄화 리스트
 ALL_LOCATIONS = []
 for group in AREA_GROUPS:
     ALL_LOCATIONS.extend(group['locations'])
-ALL_LOCATIONS = list(set(ALL_LOCATIONS)) # 중복 제거
+ALL_LOCATIONS = list(set(ALL_LOCATIONS))
 
 class EscapeBotEngine:
     def __init__(self, vector_recommender, rule_recommender, groq_key, tavily_key):
@@ -68,21 +66,13 @@ class EscapeBotEngine:
             return None
 
     def _extract_locations_from_text(self, text, on_log=None):
-        """
-        정해진 지역 리스트를 기반으로 텍스트에서 지역명을 추출합니다.
-        대분류(예: 경상)가 발견되면 해당 권역의 모든 소분류를 추가합니다.
-        """
         found_locations = set()
-        text_clean = text.replace(" ", "") # 띄어쓰기 무시 매칭을 위해
+        text_clean = text.replace(" ", "")
 
-        # 1. 소분류 (개별 지역) 매칭
-        # "홍대" -> found
         for loc in ALL_LOCATIONS:
             if loc in text or loc in text_clean:
                 found_locations.add(loc)
 
-        # 2. 대분류 (권역) 매칭 및 확장
-        # "경상도" -> 부산, 대구, 울산... 전부 추가
         for group in AREA_GROUPS:
             for keyword in group['keywords']:
                 if keyword in text or keyword in text_clean:
@@ -146,6 +136,7 @@ class EscapeBotEngine:
         
         if not self.groq_client: return {}
         
+        # [수정] min_rating 필드 추가하여 평점 조건 추출 지시
         prompt = f"""
         Analyze the user's Escape Room query in Korean.
         Query: "{user_query}"
@@ -159,7 +150,8 @@ class EscapeBotEngine:
         
         Extract:
         - action (string)
-        - keywords (Array of strings: genres, vibes, etc. EXCLUDING location names)
+        - keywords (Array of strings: genres, vibes, etc. EXCLUDING location names and rating numbers)
+        - min_rating (number or null: e.g., 4.0 if user says "4점 이상", 4.5 if "4.5 넘는거")
         - mentioned_users (Array of strings)
         - items (Array of objects {{theme: "theme_name", location: "loc_name"}} only for played_check)
         
@@ -178,7 +170,8 @@ class EscapeBotEngine:
                     if not item.get('location') and extracted_locs:
                         item['location'] = extracted_locs[0]
 
-            if on_log: on_log(f"   -> 분석 완료: {result.get('action')}, 추출 지역: {result.get('locations')}")
+            rating_log = f", 최소평점: {result.get('min_rating')}" if result.get('min_rating') else ""
+            if on_log: on_log(f"   -> 분석 완료: {result.get('action')}, 추출 지역: {result.get('locations')}{rating_log}")
             return result
         except Exception as e:
             if on_log: on_log(f"   ❌ 의도 분석 실패: {e}")
@@ -221,10 +214,12 @@ class EscapeBotEngine:
             
             return "\n".join(results_msg), {}, {}, action, debug_info
 
+        # [수정] min_rating 필터 추가
         current_filters = {
             'locations': intent_data.get('locations') or [],
             'keywords': intent_data.get('keywords') or [],
-            'mentioned_users': intent_data.get('mentioned_users') or []
+            'mentioned_users': intent_data.get('mentioned_users') or [],
+            'min_rating': intent_data.get('min_rating')
         }
         
         current_users = [u.strip() for u in str(user_context or "").split(',') if u.strip()]
@@ -241,6 +236,9 @@ class EscapeBotEngine:
             exclude_ids = list(session_context.get('shown_ids', []))
             if current_filters.get('locations'): 
                 filters_to_use['locations'] = current_filters['locations']
+            # 평점 조건이 새로 들어오면 덮어쓰기
+            if current_filters.get('min_rating'):
+                filters_to_use['min_rating'] = current_filters['min_rating']
         else:
             filters_to_use = current_filters
             exclude_ids = []
@@ -281,7 +279,10 @@ class EscapeBotEngine:
         keywords = intent_data.get('keywords', [])
         kws_str = " ".join(keywords) if isinstance(keywords, list) else str(keywords)
         
-        topic_str = f"{loc_str} {kws_str}".strip()
+        # [수정] 평점 조건도 토픽 문자열에 반영
+        rating_str = f"(★{current_filters['min_rating']} 이상)" if current_filters.get('min_rating') else ""
+        
+        topic_str = f"{loc_str} {kws_str} {rating_str}".strip()
         if not topic_str: topic_str = "요청하신"
 
         display_name = user_context if user_context else "회원"
