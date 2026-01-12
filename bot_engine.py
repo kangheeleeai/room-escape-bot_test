@@ -91,7 +91,7 @@ class EscapeBotEngine:
             if location:
                 query = query.where(filter=FieldFilter("location", "==", location))
             
-            docs = list(query.limit(200).stream())
+            docs = list(query.limit(2000).stream())
             target_name = theme_name.replace(" ", "")
             
             for doc in docs:
