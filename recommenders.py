@@ -63,9 +63,10 @@ class RuleBasedRecommender:
                 if doc.id in total_exclude_ids: continue
 
             # [다중 지역 필터링]
-            # 입력된 지역 목록(clean_locs)이 있으면, DB 주소에 그 중 하나라도 포함되어야 함 (OR 조건)
+            # [수정] store_name은 제외하고 location(주소)에서만 지역명을 찾음
             if clean_locs:
-                db_loc = f"{data.get('location', '')} {data.get('store_name', '')}".replace(" ", "")
+                # store_name을 빼버림으로써 "서울 이스케이프 룸" 같은 브랜드명 오탐 방지
+                db_loc = data.get('location', '').replace(" ", "")
                 # any()를 사용하여 하나라도 일치하면 True
                 if not any(target in db_loc for target in clean_locs):
                     continue
@@ -185,10 +186,9 @@ class VectorRecommender:
                     if doc.id in total_exclude_ids: continue
 
                 # [다중 지역 필터]
-                # 리스트에 지역이 하나라도 있다면 검사
                 if clean_locs:
-                    db_loc = f"{data.get('location', '')} {data.get('store_name', '')}".replace(" ", "")
-                    # OR 조건: 입력 지역 중 하나라도 포함되면 통과
+                    # [수정] store_name 제외하고 주소에서만 검사 (브랜드명 오탐 방지)
+                    db_loc = data.get('location', '').replace(" ", "")
                     if not any(target in db_loc for target in clean_locs):
                         continue
                 
