@@ -129,7 +129,26 @@ def main():
 
     # Session State 초기화
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "어떤 방탈출 테마를 찾으시나요? 지역이나 장르를 말씀해주세요!"}]
+        st.session_state.messages = [{"role": "assistant", "content": "어떤 방탈출 테마를 찾으시나요? 지역이나 장르를 말씀해주세요!"},
+                                     {"role": "assistant", "content": """
+                                                                        ## 🕵️ 방탈출 AI 사용 설명서
+                                                                        
+                                                                        ### 1️⃣ 기본 추천
+                                                                        * "강남 공포 테마 추천해줘"
+                                                                        * "홍대 활동성 많은거"
+                                                                        
+                                                                        ### 2️⃣ 닉네임 맞춤 추천
+                                                                        * 왼쪽 사이드바에 닉네임을 입력하면 **내 플레이 기록**을 제외하고 추천합니다.
+                                                                        * 친구들과 함께라면 쉼표(`,`)로 여러 명을 입력하세요.
+                                                                        
+                                                                        ### 3️⃣ 기록 관리
+                                                                        * "**강남 링 했어**" -> 플레이 목록에 추가
+                                                                        * "**홍대 삐릿뽀 안했어**" -> 기록 취소
+                                                                        
+                                                                        ### 0️⃣ 주의
+                                                                        * 가능한 키워드: 공포(무서운, 안무서운 등), 연출, 인테리어, 스토리, 인원 관련, 문제방(어려운, 문제방, 안어려운 등), 활동성
+                                                                        * 불가능 키워드: 판타지, SF, 코미디, 코믹, 서브 여부, 이머시브, 스릴러
+                                                                        """}]
     if "shown_theme_ids" not in st.session_state:
         st.session_state.shown_theme_ids = set()
     if "last_filters" not in st.session_state:
