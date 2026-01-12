@@ -136,7 +136,7 @@ class EscapeBotEngine:
         
         if not self.groq_client: return {}
         
-        # [수정] min_rating 필드 추가하여 평점 조건 추출 지시
+        # [수정] people_count 필드 추가
         prompt = f"""
         Analyze the user's Escape Room query in Korean.
         Query: "{user_query}"
@@ -150,8 +150,9 @@ class EscapeBotEngine:
         
         Extract:
         - action (string)
-        - keywords (Array of strings: genres, vibes, etc. EXCLUDING location names and rating numbers)
+        - keywords (Array of strings: genres, vibes, etc. EXCLUDING location names, rating numbers, person count)
         - min_rating (number or null: e.g., 4.0 if user says "4점 이상", 4.5 if "4.5 넘는거")
+        - people_count (number or null: e.g., 2 for "둘이서", 4 for "4명", "4인")
         - mentioned_users (Array of strings)
         - items (Array of objects {{theme: "theme_name", location: "loc_name"}} only for played_check)
         
@@ -170,8 +171,11 @@ class EscapeBotEngine:
                     if not item.get('location') and extracted_locs:
                         item['location'] = extracted_locs[0]
 
-            rating_log = f", 최소평점: {result.get('min_rating')}" if result.get('min_rating') else ""
-            if on_log: on_log(f"   -> 분석 완료: {result.get('action')}, 추출 지역: {result.get('locations')}{rating_log}")
+            log_extras = []
+            if result.get('min_rating'): log_extras.append(f"최소평점 {result.get('min_rating')}")
+            if result.get('people_count'): log_extras.append(f"인원 {result.get('people_count')}명")
+            
+            if on_log: on_log(f"   -> 분석 완료: {result.get('action')}, 지역: {result.get('locations')}, {', '.join(log_extras)}")
             return result
         except Exception as e:
             if on_log: on_log(f"   ❌ 의도 분석 실패: {e}")
@@ -214,12 +218,13 @@ class EscapeBotEngine:
             
             return "\n".join(results_msg), {}, {}, action, debug_info
 
-        # [수정] min_rating 필터 추가
+        # [수정] people_count 필터 추가
         current_filters = {
             'locations': intent_data.get('locations') or [],
             'keywords': intent_data.get('keywords') or [],
             'mentioned_users': intent_data.get('mentioned_users') or [],
-            'min_rating': intent_data.get('min_rating')
+            'min_rating': intent_data.get('min_rating'),
+            'people_count': intent_data.get('people_count')
         }
         
         current_users = [u.strip() for u in str(user_context or "").split(',') if u.strip()]
@@ -236,9 +241,10 @@ class EscapeBotEngine:
             exclude_ids = list(session_context.get('shown_ids', []))
             if current_filters.get('locations'): 
                 filters_to_use['locations'] = current_filters['locations']
-            # 평점 조건이 새로 들어오면 덮어쓰기
             if current_filters.get('min_rating'):
                 filters_to_use['min_rating'] = current_filters['min_rating']
+            if current_filters.get('people_count'):
+                filters_to_use['people_count'] = current_filters['people_count']
         else:
             filters_to_use = current_filters
             exclude_ids = []
@@ -279,10 +285,11 @@ class EscapeBotEngine:
         keywords = intent_data.get('keywords', [])
         kws_str = " ".join(keywords) if isinstance(keywords, list) else str(keywords)
         
-        # [수정] 평점 조건도 토픽 문자열에 반영
         rating_str = f"(★{current_filters['min_rating']} 이상)" if current_filters.get('min_rating') else ""
+        # [수정] 인원수 정보도 토픽 문자열에 반영
+        people_str = f"({current_filters['people_count']}명 추천)" if current_filters.get('people_count') else ""
         
-        topic_str = f"{loc_str} {kws_str} {rating_str}".strip()
+        topic_str = f"{loc_str} {kws_str} {rating_str} {people_str}".strip()
         if not topic_str: topic_str = "요청하신"
 
         display_name = user_context if user_context else "회원"
