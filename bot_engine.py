@@ -295,7 +295,7 @@ class EscapeBotEngine:
         display_name = user_context if user_context else "회원"
 
         response_text = f"{topic_str} 방탈출을 추천해드릴게요!\n\n" \
-                        f"맞춤 추천은 **{display_name}**님이 빠방에 작성한 리뷰를 기준으로 가까운 테마를 추천하고\n" \
+                        f"맞춤 추천은 **{display_name}**님이 빠방에 작성한 리뷰를 기준으로 가까운 테마를 추천하고\n\n" \
                         f"조건 추천은 **{display_name}**님이 방금 말씀하신 조건을 필터링해 추천해 드려요!"
 
         return response_text, final_results, filters_to_use, action, debug_info
