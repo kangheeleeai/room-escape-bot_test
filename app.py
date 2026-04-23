@@ -93,27 +93,28 @@ def render_assistant_message(msg: dict):
     if not cards:
         return
 
-    tab1, tab2 = st.tabs(["🔎 조건 추천", "🎯 맞춤 추천"])
+    tab1, tab2, tab3 = st.tabs(["🔎 조건 추천", "🎯 맞춤 추천", "🌐 검색 추천"])
     with tab1:
         rule_list = cards.get("rule_based") or []
-        web_list = cards.get("web_search") or []
         if not rule_list and cards.get("text_search"):
             st.info("조건에 딱 맞는 테마가 없어 유사한 테마를 보여드립니다.")
             rule_list = cards["text_search"]
         if rule_list:
             render_cards(rule_list)
-        if web_list:
-            if rule_list:
-                st.markdown("---")
-            st.info("🌐 인식되지 않은 키워드는 웹 검색으로 보강 추천드려요.")
-            render_cards(web_list)
-        if not rule_list and not web_list:
+        else:
             st.caption("검색 결과가 없습니다.")
     with tab2:
         if cards.get("personalized"):
             render_cards(cards["personalized"])
         else:
             st.caption("맞춤 추천 결과가 없습니다. (로그인 필요)")
+    with tab3:
+        web_list = cards.get("web_search") or []
+        if web_list:
+            st.caption("인식되지 않은 키워드를 웹에서 검색해 발굴한 테마입니다.")
+            render_cards(web_list)
+        else:
+            st.caption("이번 요청에는 웹 검색 추천이 동작하지 않았어요. (인식 가능한 키워드를 사용했거나 결과 없음)")
 
 
 def init_session_state():
