@@ -1,0 +1,22 @@
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Firebase service account
+serviceAccountKey.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Model cache
+model_cache/
+
+# OMC state
+.omc/
+
+# OS
+.DS_Store
